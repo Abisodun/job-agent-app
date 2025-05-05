@@ -40,12 +40,15 @@ def score_to_stars(score):
         return "⭐⭐⭐"
     elif score >= 25:
         return "⭐⭐"
-    elif "cohere_api_key" not in st.session_state:
+    if "cohere_api_key" not in st.session_state:
     cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
-else:
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
+if "api_key" in st.session_state:
         return "⭐"
 
 def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience):
@@ -124,30 +127,20 @@ def save_resume_as_docx(text):
 
 st.title("Smart Job Search + CV Rewrite Tool")
 
-
 if "api_key" not in st.session_state:
     api_key = st.text_input("Enter your OpenAI API Key", type="password")
     if api_key:
         st.session_state.api_key = api_key
-        st.success("OpenAI API key saved for session.")
+        st.success("API key saved for session.")
 if "cohere_api_key" not in st.session_state:
     cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
-if "api_key" in st.session_state:
-    st.success("✅ OpenAI Key is active.")
-
-    api_key = st.text_input("Enter your OpenAI API Key", type="password")
-    if api_key:
-        st.session_state.api_key = api_key
-        st.success("API key saved for session.")
-elif "cohere_api_key" not in st.session_state:
-    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
-else:
+if "api_key" in st.session_state:
     st.success("✅ API Key is active.")
 
 query = st.text_input("Job Title / Keywords", "project manager")
@@ -164,12 +157,15 @@ if uploaded_resume:
     resume_text = extract_text(uploaded_resume, file_type)
 elif os.path.exists(RESUME_FILE):
     resume_text = open(RESUME_FILE, "r", encoding="utf-8").read()
-elif "cohere_api_key" not in st.session_state:
+if "cohere_api_key" not in st.session_state:
     cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
-else:
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
+if "api_key" in st.session_state:
     st.warning("Please upload a resume or create a 'resume.txt' file.")
     st.stop()
 
@@ -194,12 +190,15 @@ if "jobs" in st.session_state:
                         filename = save_resume_as_docx(result)
                         st.session_state.rewritten_resume_path = filename
                         st.session_state.rewritten_resume_text = result
-                    elif "cohere_api_key" not in st.session_state:
+                    if "cohere_api_key" not in st.session_state:
     cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
-else:
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
+if "api_key" in st.session_state:
                         st.error(result)
 
             if st.session_state.get("rewritten_resume_text"):
