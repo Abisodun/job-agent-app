@@ -124,7 +124,20 @@ def save_resume_as_docx(text):
 
 st.title("Smart Job Search + CV Rewrite Tool")
 
+
 if "api_key" not in st.session_state:
+    api_key = st.text_input("Enter your OpenAI API Key", type="password")
+    if api_key:
+        st.session_state.api_key = api_key
+        st.success("OpenAI API key saved for session.")
+if "cohere_api_key" not in st.session_state:
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
+if "api_key" in st.session_state:
+    st.success("✅ OpenAI Key is active.")
+
     api_key = st.text_input("Enter your OpenAI API Key", type="password")
     if api_key:
         st.session_state.api_key = api_key
