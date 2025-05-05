@@ -70,6 +70,8 @@ def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, exp
     data = response.json()
     jobs = []
     for job in data.get("data", []):
+        if not isinstance(job, dict):
+            continue
         jobs.append({
             "Job Title": job.get("job_title", "N/A"),
             "Company": job.get("employer_name", "N/A"),
