@@ -2,16 +2,18 @@
 import streamlit as st
 import pandas as pd
 import requests
-import openai
 from PyPDF2 import PdfReader
 import docx
 from docx import Document
 import os
+import openai
 
 st.set_page_config(layout="wide")
 
 RESUME_FILE = "resume.txt"
 LOG_FILE = "job_log.csv"
+
+client = openai.OpenAI()
 
 def extract_text(file, file_type):
     if file_type == "txt":
@@ -82,12 +84,13 @@ def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, exp
     return jobs
 
 def generate_rewritten_resume(api_key, resume, job_description):
-    openai.api_key = api_key
-    prompt = f"Rewrite the following resume to better fit this job description. Use clear headings and bullet points for experience and skills.\n\nJob Description:\n{job_description}\n\nResume:\n{resume[:2500]}"
+    client.api_key = api_key
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "user", "content": f"Rewrite the following resume to better fit this job description. Use clear headings and bullet points for experience and skills.\n\nJob Description:\n{job_description}\n\nResume:\n{resume[:2500]}"}
+            ],
             temperature=0.7
         )
         return response.choices[0].message.content.strip()
@@ -102,7 +105,7 @@ def save_resume_as_docx(text):
     doc.save(filename)
     return filename
 
-st.title("Smart Job Search + CV Rewrite Tool")
+st.title("Smart Job Search + CV Rewrite Tool (v1.x compatible)")
 
 if "api_key" not in st.session_state:
     api_key = st.text_input("Enter your OpenAI API Key", type="password")

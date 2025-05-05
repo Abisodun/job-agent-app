@@ -3,4 +3,4 @@ pandas
 requests
 PyPDF2
 python-docx
-openai
+openai>=1.0.0
