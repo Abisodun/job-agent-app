@@ -73,7 +73,7 @@ def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, exp
         jobs.append({
             "Job Title": job.get("job_title", "N/A"),
             "Company": job.get("employer_name", "N/A"),
-            "Location": job.get("job_city", "N/A") + ", " + job.get("job_country", "N/A"),
+            "Location": f"{job.get('job_city') or 'N/A'}, {job.get('job_country') or 'N/A'}",
             "Link": job.get("job_apply_link", "N/A"),
             "Description": job.get("job_description", ""),
             "Cover Letter Path": "",
@@ -103,7 +103,7 @@ def save_resume_as_docx(text):
     doc.save(filename)
     return filename
 
-st.title("Smart Job Search + CV Rewrite Tool (Final Fixed Version)")
+st.title("Smart Job Search + CV Rewrite Tool")
 
 if "api_key" not in st.session_state:
     api_key = st.text_input("Enter your OpenAI API Key", type="password")
