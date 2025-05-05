@@ -4,3 +4,5 @@ requests
 PyPDF2
 python-docx
 openai
+gspread
+oauth2client
