@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import openai
 from PyPDF2 import PdfReader
 import docx
 import os
@@ -22,22 +23,26 @@ def extract_text(file, file_type):
         return "\n".join([p.text for p in doc.paragraphs])
     return ""
 
-def fetch_jobs(query, country, city, employment_type):
+def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience):
     url = "https://jsearch.p.rapidapi.com/search"
     headers = {
         "X-RapidAPI-Key": "2bc0998f49mshb8e8cd2a7c87e7dp18960fjsnf228ecfe1ab9",
         "X-RapidAPI-Host": "jsearch.p.rapidapi.com"
     }
-    full_query = f"{query} in {city}, {country}"
+    full_query = f"{query or 'project manager'} in {city}, {country}"
+    valid_types = ["Full-time", "Part-time", "Contract", "Temporary", "Internship"]
+
     params = {
         "query": full_query,
-        "employment_types": employment_type if employment_type != "Any" else "",
+        "employment_types": employment_type if employment_type in valid_types else None,
+        "remote_jobs_only": "true" if is_remote else "false",
+        "min_salary": min_salary,
+        "experience_level": experience.lower() if experience != "Any" else None,
         "page": "1",
-        "num_pages": "3"
+        "num_pages": "2"
     }
 
     response = requests.get(url, headers=headers, params=params)
-
     if response.status_code != 200:
         st.error(f"API request failed with status code {response.status_code}")
         return []
@@ -50,20 +55,45 @@ def fetch_jobs(query, country, city, employment_type):
             "Company": job.get("employer_name", "N/A"),
             "Location": job.get("job_city", "N/A") + ", " + job.get("job_country", "N/A"),
             "Link": job.get("job_apply_link", "N/A"),
+            "Description": job.get("job_description", ""),
             "Cover Letter Path": "",
             "Status": "Applied"
         })
     return jobs
 
+def generate_cover_letter(api_key, job_title, company, resume):
+    openai.api_key = api_key
+    prompt = f"Write a concise and professional cover letter for a '{job_title}' role at '{company}'. Base it on this resume:\n\n{resume[:1500]}"
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Error: {e}"
+
+def score_resume_against_job(resume, job_description):
+    resume_words = set(resume.lower().split())
+    job_words = set(job_description.lower().split())
+    match = resume_words.intersection(job_words)
+    score = int((len(match) / len(job_words)) * 100) if job_words else 0
+    return score
+
 page = st.sidebar.radio("Select Page:", ["Job Search", "Application Tracker"])
 
 if page == "Job Search":
-    st.title("AI Job Application Agent")
+    st.title("AI Job Application Agent with Resume Scoring")
 
+    api_key = st.text_input("Enter your OpenAI API Key", type="password")
     query = st.text_input("Job Title / Keywords", "project manager")
     country = st.text_input("Country", "Canada")
     city = st.text_input("City", "Toronto")
     employment_type = st.selectbox("Employment Type", ["Any", "Full-time", "Part-time", "Contract", "Temporary", "Internship"])
+    experience = st.selectbox("Experience Level", ["Any", "Entry", "Mid", "Senior"])
+    is_remote = st.checkbox("Remote Only?")
+    min_salary = st.slider("Minimum Salary ($)", 0, 200000, 0, 5000)
 
     uploaded_resume = st.file_uploader("Upload your Resume (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
     if uploaded_resume:
@@ -77,7 +107,7 @@ if page == "Job Search":
 
     if st.button("Find Jobs"):
         with st.spinner("Searching jobs..."):
-            jobs = fetch_jobs(query, country, city, employment_type)
+            jobs = fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience)
 
         if not jobs:
             st.warning("No jobs found.")
@@ -87,30 +117,12 @@ if page == "Job Search":
                     st.markdown(f"**Location:** {job['Location']}")
                     st.markdown(f"[Apply Here]({job['Link']})")
 
-                    auto_apply = st.checkbox("Auto-generate and apply with default cover letter", key=f"auto_{i}")
-                    if auto_apply:
-                        default_letter = f"Dear Hiring Manager,\n\nI am writing to express my interest in the {job['Job Title']} role at {job['Company']}. With relevant experience and a strong commitment to excellence, I am confident in my ability to contribute effectively.\n\nBest regards,\nYour Name"
-                        filename = f"cover_letter_auto_{i+1}.txt"
-                        with open(filename, "w", encoding="utf-8") as f:
-                            f.write(default_letter)
-                        job["Cover Letter Path"] = filename
+                    score = score_resume_against_job(resume_text, job["Description"])
+                    st.info(f"Resume Match Score: {score}%")
 
-                        file_exists = os.path.isfile(LOG_FILE)
-                        with open(LOG_FILE, "a", newline="", encoding="utf-8") as csvfile:
-                            df = pd.DataFrame([job])
-                            df.to_csv(csvfile, mode='a', index=False, header=not file_exists)
-
-                        st.success(f"Auto-applied to {job['Company']} and logged.")
-                    else:
-                        st.write("### Manual Cover Letter Prompt:")
-                        st.code(f"""Write a cover letter for a {query} role at {job['Company']} in {city}, {country}.
-
-Resume:
-{resume_text[:1500]}...
-""", language="markdown")
-
-                        letter = st.text_area("Paste your generated cover letter here (or type SKIP):", key=f"cl_{i}")
-                        if letter.strip().lower() != "skip" and letter.strip() != "":
+                    if st.button(f"Generate Cover Letter", key=f"gen_{i}"):
+                        if api_key:
+                            letter = generate_cover_letter(api_key, job["Job Title"], job["Company"], resume_text)
                             filename = f"cover_letter_{i+1}.txt"
                             with open(filename, "w", encoding="utf-8") as f:
                                 f.write(letter)
@@ -121,7 +133,10 @@ Resume:
                                 df = pd.DataFrame([job])
                                 df.to_csv(csvfile, mode='a', index=False, header=not file_exists)
 
-                            st.success(f"Cover letter saved as `{filename}` and job logged.")
+                            st.text_area("Generated Cover Letter", value=letter, height=300)
+                            st.success(f"Cover letter saved and job logged.")
+                        else:
+                            st.error("Please provide a valid OpenAI API key.")
 
 else:
     st.title("Job Application Tracker")
