@@ -130,30 +130,39 @@ else:
     st.warning("Please upload a resume or create a 'resume.txt' file.")
     st.stop()
 
-if st.button("Find & Rank Jobs"):
+if "jobs" not in st.session_state and st.button("Find & Rank Jobs"):
     with st.spinner("Ranking jobs by match score..."):
-        jobs = fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience)
+        st.session_state.jobs = fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience)
+        for job in st.session_state.jobs:
+            job["Match Score"] = score_resume_against_job(resume_text, job["Description"])
+        st.session_state.jobs = sorted(st.session_state.jobs, key=lambda x: x["Match Score"], reverse=True)
 
-        if not jobs:
-            st.warning("No jobs found.")
-        else:
-            for job in jobs:
-                job["Match Score"] = score_resume_against_job(resume_text, job["Description"])
+if "jobs" in st.session_state:
+    for i, job in enumerate(st.session_state.jobs[:10]):
+        stars = score_to_stars(job["Match Score"])
+        with st.expander(f"[{i+1}] {stars} {job['Job Title']} at {job['Company']} ({job['Match Score']}%)"):
+            st.markdown(f"**Location:** {job['Location']}")
+            st.markdown(f"[Apply Here]({job['Link']})")
 
-            jobs = sorted(jobs, key=lambda x: x["Match Score"], reverse=True)
+            if st.button(f"Rewrite Resume for This Job", key=f"rewrite_{i}"):
+                with st.spinner("Generating improved resume..."):
+                    result = generate_rewritten_resume(st.session_state.api_key, resume_text, job["Description"])
+                    if not result.startswith("Error"):
+                        filename = save_resume_as_docx(result)
+                        st.session_state.rewritten_resume_path = filename
+                        st.session_state.rewritten_resume_text = result
+                    else:
+                        st.error(result)
 
-            for i, job in enumerate(jobs[:10]):
-                stars = score_to_stars(job["Match Score"])
-                with st.expander(f"[{i+1}] {stars} {job['Job Title']} at {job['Company']} ({job['Match Score']}%)"):
-                    st.markdown(f"**Location:** {job['Location']}")
-                    st.markdown(f"[Apply Here]({job['Link']})")
+            if st.session_state.get("rewritten_resume_text"):
+                st.subheader("📄 Preview Rewritten Resume:")
+                st.text_area("Preview", st.session_state.rewritten_resume_text, height=300)
 
-                    if st.button(f"Rewrite Resume for This Job", key=f"rewrite_{i}"):
-                        with st.spinner("Generating improved resume..."):
-                            result = generate_rewritten_resume(st.session_state.api_key, resume_text, job["Description"])
-                            if result.startswith("Error:"):
-                                st.error(result)
-                            else:
-                                path = save_resume_as_docx(result)
-                                with open(path, "rb") as f:
-                                    st.download_button("Download Rewritten Resume (.docx)", f, file_name=path, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            if st.session_state.get("rewritten_resume_path"):
+                with open(st.session_state.rewritten_resume_path, "rb") as f:
+                    st.download_button(
+                        "Download Rewritten Resume (.docx)",
+                        f,
+                        file_name=st.session_state.rewritten_resume_path,
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
