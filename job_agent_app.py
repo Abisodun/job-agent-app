@@ -8,7 +8,7 @@ import os
 
 st.set_page_config(layout="wide")
 
-# Function to extract text from uploaded resume
+# Extract text from uploaded resume
 def extract_text(file, file_type):
     if file_type == "txt":
         return file.read().decode("utf-8")
@@ -20,7 +20,7 @@ def extract_text(file, file_type):
         return "\n".join([p.text for p in doc.paragraphs])
     return ""
 
-# Fetch jobs from JSearch API
+# Fetch jobs using JSearch API
 def fetch_jobs(query, country, city, employment_type):
     url = "https://jsearch.p.rapidapi.com/search"
     headers = {
@@ -81,7 +81,8 @@ if st.button("Find Jobs"):
                 st.markdown(f"**Location:** {job['Location']}")
                 st.markdown(f"[Apply Here]({job['Link']})")
                 st.write("### Prompt for ChatGPT:")
-                st.code(f"Write a cover letter for a {query} role at {job['Company']} in {city}, {country}.
+                st.code(f"""Write a cover letter for a {query} role at {job['Company']} in {city}, {country}.
 
 Resume:
-{resume_text[:1500]}...", language="markdown")
+{resume_text[:1500]}...
+""", language="markdown")
