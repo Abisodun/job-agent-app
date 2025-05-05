@@ -5,6 +5,7 @@ import requests
 import openai
 from PyPDF2 import PdfReader
 import docx
+from docx import Document
 import os
 
 st.set_page_config(layout="wide")
@@ -22,6 +23,25 @@ def extract_text(file, file_type):
         doc = docx.Document(file)
         return "\n".join([p.text for p in doc.paragraphs])
     return ""
+
+def score_resume_against_job(resume, job_description):
+    resume_words = set(resume.lower().split())
+    job_words = set(job_description.lower().split())
+    match = resume_words.intersection(job_words)
+    score = int((len(match) / len(job_words)) * 100) if job_words else 0
+    return score
+
+def score_to_stars(score):
+    if score >= 90:
+        return "⭐⭐⭐⭐⭐"
+    elif score >= 75:
+        return "⭐⭐⭐⭐"
+    elif score >= 50:
+        return "⭐⭐⭐"
+    elif score >= 25:
+        return "⭐⭐"
+    else:
+        return "⭐"
 
 def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience):
     url = "https://jsearch.p.rapidapi.com/search"
@@ -61,9 +81,9 @@ def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, exp
         })
     return jobs
 
-def generate_cover_letter(api_key, job_title, company, resume):
+def generate_rewritten_resume(api_key, resume, job_description):
     openai.api_key = api_key
-    prompt = f"Write a concise and professional cover letter for a '{job_title}' role at '{company}'. Base it on this resume:\n\n{resume[:1500]}"
+    prompt = f"Rewrite the following resume to better fit this job description. Use clear headings and bullet points for experience and skills.\n\nJob Description:\n{job_description}\n\nResume:\n{resume[:2500]}"
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -74,105 +94,66 @@ def generate_cover_letter(api_key, job_title, company, resume):
     except Exception as e:
         return f"Error: {e}"
 
-def score_resume_against_job(resume, job_description):
-    resume_words = set(resume.lower().split())
-    job_words = set(job_description.lower().split())
-    match = resume_words.intersection(job_words)
-    score = int((len(match) / len(job_words)) * 100) if job_words else 0
-    return score
+def save_resume_as_docx(text):
+    doc = Document()
+    for line in text.split("\n"):
+        doc.add_paragraph(line)
+    filename = "Improved_Resume.docx"
+    doc.save(filename)
+    return filename
 
-page = st.sidebar.radio("Select Page:", ["Job Search", "Application Tracker"])
+st.title("Smart Job Search + CV Rewrite Tool")
 
-if page == "Job Search":
-    st.title("AI Job Application Agent with Resume Scoring")
-
+if "api_key" not in st.session_state:
     api_key = st.text_input("Enter your OpenAI API Key", type="password")
-    query = st.text_input("Job Title / Keywords", "project manager")
-    country = st.text_input("Country", "Canada")
-    city = st.text_input("City", "Toronto")
-    employment_type = st.selectbox("Employment Type", ["Any", "Full-time", "Part-time", "Contract", "Temporary", "Internship"])
-    experience = st.selectbox("Experience Level", ["Any", "Entry", "Mid", "Senior"])
-    is_remote = st.checkbox("Remote Only?")
-    min_salary = st.slider("Minimum Salary ($)", 0, 200000, 0, 5000)
+    if api_key:
+        st.session_state.api_key = api_key
+        st.success("API key saved for session.")
+else:
+    st.success("✅ API Key is active.")
 
-    uploaded_resume = st.file_uploader("Upload your Resume (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
-    if uploaded_resume:
-        file_type = uploaded_resume.name.split(".")[-1]
-        resume_text = extract_text(uploaded_resume, file_type)
-    elif os.path.exists(RESUME_FILE):
-        resume_text = open(RESUME_FILE, "r", encoding="utf-8").read()
-    else:
-        st.warning("Please upload a resume or create a 'resume.txt' file.")
-        st.stop()
+query = st.text_input("Job Title / Keywords", "project manager")
+country = st.text_input("Country", "Canada")
+city = st.text_input("City", "Toronto")
+employment_type = st.selectbox("Employment Type", ["Any", "Full-time", "Part-time", "Contract", "Temporary", "Internship"])
+experience = st.selectbox("Experience Level", ["Any", "Entry", "Mid", "Senior"])
+is_remote = st.checkbox("Remote Only?")
+min_salary = st.slider("Minimum Salary ($)", 0, 200000, 0, 5000)
 
-    if st.button("Find Jobs"):
-        with st.spinner("Searching jobs..."):
-            jobs = fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience)
+uploaded_resume = st.file_uploader("Upload your Resume (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
+if uploaded_resume:
+    file_type = uploaded_resume.name.split(".")[-1]
+    resume_text = extract_text(uploaded_resume, file_type)
+elif os.path.exists(RESUME_FILE):
+    resume_text = open(RESUME_FILE, "r", encoding="utf-8").read()
+else:
+    st.warning("Please upload a resume or create a 'resume.txt' file.")
+    st.stop()
+
+if st.button("Find & Rank Jobs"):
+    with st.spinner("Ranking jobs by match score..."):
+        jobs = fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience)
 
         if not jobs:
             st.warning("No jobs found.")
         else:
+            for job in jobs:
+                job["Match Score"] = score_resume_against_job(resume_text, job["Description"])
+
+            jobs = sorted(jobs, key=lambda x: x["Match Score"], reverse=True)
+
             for i, job in enumerate(jobs[:10]):
-                with st.expander(f"[{i+1}] {job['Job Title']} at {job['Company']}"):
+                stars = score_to_stars(job["Match Score"])
+                with st.expander(f"[{i+1}] {stars} {job['Job Title']} at {job['Company']} ({job['Match Score']}%)"):
                     st.markdown(f"**Location:** {job['Location']}")
                     st.markdown(f"[Apply Here]({job['Link']})")
 
-                    score = score_resume_against_job(resume_text, job["Description"])
-                    st.info(f"Resume Match Score: {score}%")
-
-                    if st.button(f"Generate Cover Letter", key=f"gen_{i}"):
-                        if api_key:
-                            letter = generate_cover_letter(api_key, job["Job Title"], job["Company"], resume_text)
-                            filename = f"cover_letter_{i+1}.txt"
-                            with open(filename, "w", encoding="utf-8") as f:
-                                f.write(letter)
-                            job["Cover Letter Path"] = filename
-
-                            file_exists = os.path.isfile(LOG_FILE)
-                            with open(LOG_FILE, "a", newline="", encoding="utf-8") as csvfile:
-                                df = pd.DataFrame([job])
-                                df.to_csv(csvfile, mode='a', index=False, header=not file_exists)
-
-                            st.text_area("Generated Cover Letter", value=letter, height=300)
-                            st.success(f"Cover letter saved and job logged.")
-                        else:
-                            st.error("Please provide a valid OpenAI API key.")
-
-else:
-    st.title("Job Application Tracker")
-
-    if "job_data" not in st.session_state:
-        if os.path.exists(LOG_FILE):
-            st.session_state.job_data = pd.read_csv(LOG_FILE, index_col=False)
-        else:
-            st.session_state.job_data = pd.DataFrame(columns=[
-                "Job Title", "Company", "Location", "Link", "Cover Letter Path", "Status"
-            ])
-
-    df = st.session_state.job_data
-
-    st.header("Summary")
-    st.metric("Total Applications", len(df))
-
-    st.header("Application Table")
-    status_options = ["Applied", "Interviewing", "Rejected", "Hired"]
-
-    column_config = {
-        "Status": st.column_config.SelectboxColumn("Status", options=status_options),
-        "Link": st.column_config.LinkColumn("Job Link")
-    }
-
-    edited_df = st.data_editor(
-        df,
-        column_config=column_config,
-        disabled=["Job Title", "Company", "Location", "Cover Letter Path"],
-        hide_index=True,
-        use_container_width=True,
-        key="editor"
-    )
-
-    st.session_state.job_data = edited_df
-
-    if st.button("Save Updates"):
-        edited_df.to_csv(LOG_FILE, index=False)
-        st.success("Application statuses saved!")
+                    if st.button(f"Rewrite Resume for This Job", key=f"rewrite_{i}"):
+                        with st.spinner("Generating improved resume..."):
+                            result = generate_rewritten_resume(st.session_state.api_key, resume_text, job["Description"])
+                            if result.startswith("Error:"):
+                                st.error(result)
+                            else:
+                                path = save_resume_as_docx(result)
+                                with open(path, "rb") as f:
+                                    st.download_button("Download Rewritten Resume (.docx)", f, file_name=path, mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
