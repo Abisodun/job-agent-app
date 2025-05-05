@@ -25,7 +25,7 @@ This is a smart job application assistant built with Streamlit. It helps users s
 2. Visit [https://streamlit.io/cloud](https://streamlit.io/cloud).
 3. Click **"New App"**, select your repo and branch.
 4. Set the main file to `job_agent_app.py`.
-5. Click **Deploy**.
+5. Click **Deploy**
 
 ## 🔐 API Requirements
 
@@ -38,15 +38,5 @@ This is a smart job application assistant built with Streamlit. It helps users s
 pip install -r requirements.txt
 streamlit run job_agent_app.py
 ```
-
-## 📝 Credits
-
-Built with ❤️ using:
-- Streamlit
-- OpenAI GPT
-- PyPDF2 & python-docx
-- RapidAPI (JSearch endpoint)
-
----
 
 MIT License © 2025
