@@ -4,11 +4,24 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 import os
+from PyPDF2 import PdfReader
+import docx
 
 st.set_page_config(layout="wide")
 
 RESUME_FILE = "resume.txt"
 LOG_FILE = "job_log.csv"
+
+def extract_text(file, file_type):
+    if file_type == "txt":
+        return file.read().decode("utf-8")
+    elif file_type == "pdf":
+        reader = PdfReader(file)
+        return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    elif file_type == "docx":
+        doc = docx.Document(file)
+        return "\n".join([p.text for p in doc.paragraphs])
+    return ""
 
 page = st.sidebar.radio("Select Page:", ["Job Search", "Application Tracker"])
 
@@ -19,9 +32,10 @@ if page == "Job Search":
     job_query = st.text_input("Job Title / Keywords", "project manager")
     location = st.text_input("Location", "Winnipeg")
 
-    uploaded_resume = st.file_uploader("Upload your Resume (.txt)", type=["txt"])
+    uploaded_resume = st.file_uploader("Upload your Resume (.txt, .pdf, .docx)", type=["txt", "pdf", "docx"])
     if uploaded_resume:
-        resume_text = uploaded_resume.read().decode("utf-8")
+        file_type = uploaded_resume.name.split(".")[-1]
+        resume_text = extract_text(uploaded_resume, file_type)
     elif os.path.exists(RESUME_FILE):
         resume_text = open(RESUME_FILE, "r", encoding="utf-8").read()
     else:
@@ -63,7 +77,6 @@ if page == "Job Search":
             for i, job in enumerate(jobs[:5]):
                 with st.expander(f"[{i+1}] {job['Job Title']} at {job['Company']}"):
                     st.markdown(f"[View Job Posting]({job['Link']})")
-
                     st.write("### Prompt to Use in ChatGPT:")
                     prompt = f"""Write a professional cover letter for:
 
