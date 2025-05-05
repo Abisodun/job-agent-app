@@ -4,3 +4,4 @@ requests
 PyPDF2
 python-docx
 openai>=1.0.0
+cohere

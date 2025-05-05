@@ -40,7 +40,12 @@ def score_to_stars(score):
         return "⭐⭐⭐"
     elif score >= 25:
         return "⭐⭐"
-    else:
+    elif "cohere_api_key" not in st.session_state:
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
+else:
         return "⭐"
 
 def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, experience):
@@ -83,17 +88,29 @@ def fetch_jobs(query, country, city, employment_type, is_remote, min_salary, exp
         })
     return jobs
 
-def generate_rewritten_resume(api_key, resume, job_description):
+def generate_rewritten_resume(api_key, resume, job_description, cohere_api_key=None):
     openai.api_key = api_key
     try:
+        
+    try:
         response = openai.chat.completions.create(
+
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "user", "content": f"Rewrite the following resume to better fit this job description. Use clear headings and bullet points for experience and skills.\n\nJob Description:\n{job_description}\n\nResume:\n{resume[:2500]}"}
             ],
             temperature=0.7
         )
-        return response.choices[0].message.content.strip()
+                return response.choices[0].message.content.strip()
+    except Exception as e:
+        if "quota" in str(e).lower() or "limit" in str(e).lower():
+            import cohere
+            co = cohere.Client(cohere_api_key)
+            prompt = f"Rewrite the following resume to match this job description. Use bullet points and clear sections. Job Description:\n{job_description}\nResume:\n{resume[:2000]}"
+            result = co.generate(prompt=prompt, model="command", max_tokens=800)
+            return result.generations[0].text.strip()
+        return f"Error: {e}"
+
     except Exception as e:
         return f"Error: {e}"
 
@@ -112,6 +129,11 @@ if "api_key" not in st.session_state:
     if api_key:
         st.session_state.api_key = api_key
         st.success("API key saved for session.")
+elif "cohere_api_key" not in st.session_state:
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
 else:
     st.success("✅ API Key is active.")
 
@@ -129,6 +151,11 @@ if uploaded_resume:
     resume_text = extract_text(uploaded_resume, file_type)
 elif os.path.exists(RESUME_FILE):
     resume_text = open(RESUME_FILE, "r", encoding="utf-8").read()
+elif "cohere_api_key" not in st.session_state:
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
 else:
     st.warning("Please upload a resume or create a 'resume.txt' file.")
     st.stop()
@@ -149,12 +176,17 @@ if "jobs" in st.session_state:
 
             if st.button(f"Rewrite Resume for This Job", key=f"rewrite_{i}"):
                 with st.spinner("Generating improved resume..."):
-                    result = generate_rewritten_resume(st.session_state.api_key, resume_text, job["Description"])
+                    result = generate_rewritten_resume(st.session_state.api_key, resume_text, job["Description"], cohere_api_key=st.session_state.get("cohere_api_key"))
                     if not result.startswith("Error"):
                         filename = save_resume_as_docx(result)
                         st.session_state.rewritten_resume_path = filename
                         st.session_state.rewritten_resume_text = result
-                    else:
+                    elif "cohere_api_key" not in st.session_state:
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
+    if cohere_key:
+        st.session_state.cohere_api_key = cohere_key
+        st.success("Cohere fallback key saved.")
+else:
                         st.error(result)
 
             if st.session_state.get("rewritten_resume_text"):
