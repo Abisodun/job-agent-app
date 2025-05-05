@@ -45,6 +45,8 @@ def score_to_stars(score):
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
+
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
@@ -137,6 +139,8 @@ if "cohere_api_key" not in st.session_state:
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
+
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
@@ -162,6 +166,8 @@ if "cohere_api_key" not in st.session_state:
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
+
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
@@ -195,6 +201,8 @@ if "jobs" in st.session_state:
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
+
+    cohere_key = st.text_input("Enter your Cohere API Key (optional fallback)", type="password")
     if cohere_key:
         st.session_state.cohere_api_key = cohere_key
         st.success("Cohere fallback key saved.")
