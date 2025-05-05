@@ -11,7 +11,6 @@ st.set_page_config(layout="wide")
 RESUME_FILE = "resume.txt"
 LOG_FILE = "job_log.csv"
 
-# Extract text from uploaded resume
 def extract_text(file, file_type):
     if file_type == "txt":
         return file.read().decode("utf-8")
@@ -23,7 +22,6 @@ def extract_text(file, file_type):
         return "\n".join([p.text for p in doc.paragraphs])
     return ""
 
-# Fetch jobs using JSearch API
 def fetch_jobs(query, country, city, employment_type):
     url = "https://jsearch.p.rapidapi.com/search"
     headers = {
@@ -35,7 +33,7 @@ def fetch_jobs(query, country, city, employment_type):
         "query": full_query,
         "employment_types": employment_type if employment_type != "Any" else "",
         "page": "1",
-        "num_pages": "1"
+        "num_pages": "3"
     }
 
     response = requests.get(url, headers=headers, params=params)
@@ -57,10 +55,8 @@ def fetch_jobs(query, country, city, employment_type):
         })
     return jobs
 
-# Sidebar navigation
 page = st.sidebar.radio("Select Page:", ["Job Search", "Application Tracker"])
 
-# === JOB SEARCH PAGE ===
 if page == "Job Search":
     st.title("AI Job Application Agent")
 
@@ -80,29 +76,23 @@ if page == "Job Search":
         st.stop()
 
     if st.button("Find Jobs"):
-        st.info("Searching...")
-        jobs = fetch_jobs(query, country, city, employment_type)
+        with st.spinner("Searching jobs..."):
+            jobs = fetch_jobs(query, country, city, employment_type)
 
         if not jobs:
             st.warning("No jobs found.")
         else:
-            for i, job in enumerate(jobs[:5]):
+            for i, job in enumerate(jobs[:10]):
                 with st.expander(f"[{i+1}] {job['Job Title']} at {job['Company']}"):
                     st.markdown(f"**Location:** {job['Location']}")
                     st.markdown(f"[Apply Here]({job['Link']})")
 
-                    st.write("### Prompt for ChatGPT:")
-                    st.code(f"""Write a cover letter for a {query} role at {job['Company']} in {city}, {country}.
-
-Resume:
-{resume_text[:1500]}...
-""", language="markdown")
-
-                    letter = st.text_area("Paste your generated cover letter here (or type SKIP):", key=f"cl_{i}")
-                    if letter.strip().lower() != "skip" and letter.strip() != "":
-                        filename = f"cover_letter_{i+1}.txt"
+                    auto_apply = st.checkbox("Auto-generate and apply with default cover letter", key=f"auto_{i}")
+                    if auto_apply:
+                        default_letter = f"Dear Hiring Manager,\n\nI am writing to express my interest in the {job['Job Title']} role at {job['Company']}. With relevant experience and a strong commitment to excellence, I am confident in my ability to contribute effectively.\n\nBest regards,\nYour Name"
+                        filename = f"cover_letter_auto_{i+1}.txt"
                         with open(filename, "w", encoding="utf-8") as f:
-                            f.write(letter)
+                            f.write(default_letter)
                         job["Cover Letter Path"] = filename
 
                         file_exists = os.path.isfile(LOG_FILE)
@@ -110,11 +100,29 @@ Resume:
                             df = pd.DataFrame([job])
                             df.to_csv(csvfile, mode='a', index=False, header=not file_exists)
 
-                        st.success(f"Cover letter saved as `{filename}` and job logged.")
-                    elif letter.strip().lower() == "skip":
-                        st.info("Skipped.")
+                        st.success(f"Auto-applied to {job['Company']} and logged.")
+                    else:
+                        st.write("### Manual Cover Letter Prompt:")
+                        st.code(f"""Write a cover letter for a {query} role at {job['Company']} in {city}, {country}.
 
-# === TRACKER PAGE ===
+Resume:
+{resume_text[:1500]}...
+""", language="markdown")
+
+                        letter = st.text_area("Paste your generated cover letter here (or type SKIP):", key=f"cl_{i}")
+                        if letter.strip().lower() != "skip" and letter.strip() != "":
+                            filename = f"cover_letter_{i+1}.txt"
+                            with open(filename, "w", encoding="utf-8") as f:
+                                f.write(letter)
+                            job["Cover Letter Path"] = filename
+
+                            file_exists = os.path.isfile(LOG_FILE)
+                            with open(LOG_FILE, "a", newline="", encoding="utf-8") as csvfile:
+                                df = pd.DataFrame([job])
+                                df.to_csv(csvfile, mode='a', index=False, header=not file_exists)
+
+                            st.success(f"Cover letter saved as `{filename}` and job logged.")
+
 else:
     st.title("Job Application Tracker")
 
